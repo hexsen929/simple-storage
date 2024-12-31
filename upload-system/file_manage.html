@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件管理</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .file-icon {
+            font-size: 1.5rem;
+            margin-right: 0.5rem;
+        }
+        .thumbnail {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 4px;
+            margin-right: 0.5rem;
+            cursor: pointer;
+        }
+        .preview-modal-img {
+            max-width: 100%;
+            max-height: 80vh;
+        }
+        .file-name-cell {
+            display: flex;
+            align-items: center;
+        }
+        /* 文件类型图标颜色 */
+        .icon-image { color: #28a745; }
+        .icon-video { color: #dc3545; }
+        .icon-audio { color: #007bff; }
+        .icon-archive { color: #ffc107; }
+        .icon-pdf { color: #dc3545; }
+        .icon-doc { color: #0066cc; }
+        .icon-excel { color: #217346; }
+        .icon-code { color: #6c757d; }
+        .icon-text { color: #495057; }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>文件管理</h2>
+                    <button class="btn btn-primary" onclick="window.location.href='index.html'">返回主页</button>
+                </div>
+                <div id="userFilter" class="mb-3" style="display: none;">
+                    <label for="username" class="form-label">筛选用户:</label>
+                    <select class="form-select" id="username" onchange="loadFiles()">
+                        <option value="">所有用户</option>
+                    </select>
+                </div>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <input type="checkbox" class="form-check-input" id="selectAll" onclick="toggleSelectAll()">
+                                </th>
+                                <th>文件</th>
+                                <th>大小</th>
+                                <th>上传者</th>
+                                <th>上传时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fileList"></tbody>
+                    </table>
+                    <div class="mt-3">
+                        <button class="btn btn-danger" onclick="deleteSelectedFiles()">
+                            <i class="bi bi-trash"></i> 删除选中文件
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图片预览模态框 -->
+    <div class="modal fade" id="previewModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">文件预览</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="previewImage" class="preview-modal-img" src="" alt="">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentToken = '';
+        const previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+
+        // 获取文件类型图标
+        function getFileIcon(mimeType, extension) {
+            const iconBase = 'bi bi-';
+            if (mimeType.startsWith('image/')) {
+                return `${iconBase}image icon-image`;
+            } else if (mimeType.startsWith('video/')) {
+                return `${iconBase}camera-video icon-video`;
+            } else if (mimeType.startsWith('audio/')) {
+                return `${iconBase}music-note icon-audio`;
+            } else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(extension)) {
+                return `${iconBase}file-earmark-zip icon-archive`;
+            } else if (extension === 'pdf') {
+                return `${iconBase}file-earmark-pdf icon-pdf`;
+            } else if (['doc', 'docx'].includes(extension)) {
+                return `${iconBase}file-earmark-word icon-doc`;
+            } else if (['xls', 'xlsx'].includes(extension)) {
+                return `${iconBase}file-earmark-excel icon-excel`;
+            } else if (['js', 'php', 'html', 'css', 'java', 'py', 'cpp', 'c'].includes(extension)) {
+                return `${iconBase}file-earmark-code icon-code`;
+            } else if (['txt', 'md', 'json'].includes(extension)) {
+                return `${iconBase}file-earmark-text icon-text`;
+            }
+            return `${iconBase}file-earmark`;
+        }
+
+        // 预览图片
+        function previewImage(url, filename) {
+            const previewImg = document.getElementById('previewImage');
+            previewImg.src = url;
+            previewImg.alt = filename;
+            document.querySelector('#previewModal .modal-title').textContent = filename;
+            previewModal.show();
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 格式化时间戳
+        function formatTimestamp(timestamp) {
+            return new Date(timestamp * 1000).toLocaleString();
+        }
+
+        // 检查登录状态
+        async function checkLoginStatus() {
+            try {
+                const response = await fetch('api/user.php?action=check_login');
+                const data = await response.json();
+                if (!data.success) {
+                    window.location.href = 'index.html';
+                    return;
+                }
+                if (data.is_admin) {
+                    document.getElementById('userFilter').style.display = 'block';
+                    loadUserList();
+                }
+                loadFiles();
+            } catch (error) {
+                console.error('检查登录状态失败:', error);
+                window.location.href = 'index.html';
+            }
+        }
+
+        // 加载文件列表
+        async function loadFiles() {
+            try {
+                const formData = new FormData();
+                formData.append('action', 'list');
+                const username = document.getElementById('username').value;
+                if (username && username.trim() !== '') {
+                    formData.append('username', username);
+                }
+
+                const response = await fetch('api/file_manage.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || '加载文件列表失败');
+                }
+
+                const fileList = document.getElementById('fileList');
+                fileList.innerHTML = '';
+
+                if (data.files.length === 0) {
+                    fileList.innerHTML = '<tr><td colspan="6" class="text-center">暂无文件</td></tr>';
+                    return;
+                }
+
+                data.files.forEach(file => {
+                    const extension = file.original_name.split('.').pop().toLowerCase();
+                    const isImage = file.mime_type.startsWith('image/');
+                    const iconClass = getFileIcon(file.mime_type, extension);
+                    
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>
+                            <input type="checkbox" class="form-check-input file-checkbox" 
+                                   data-filename="${file.filename}" 
+                                   data-delete-key="${file.delete_key}">
+                        </td>
+                        <td class="file-name-cell">
+                            ${isImage ? 
+                                `<img src="${file.download_url}" class="thumbnail" 
+                                     onclick="previewImage('${file.download_url}', '${file.original_name}')" 
+                                     alt="${file.original_name}">` :
+                                `<i class="${iconClass} file-icon"></i>`
+                            }
+                            ${file.original_name}
+                        </td>
+                        <td>${formatFileSize(file.size)}</td>
+                        <td>${file.username}</td>
+                        <td>${formatTimestamp(file.upload_time)}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary me-1" onclick="copyDownloadUrl('${file.download_url}')">
+                                <i class="bi bi-link-45deg"></i> 复制链接
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteFile('${file.filename}', '${file.delete_key}')">
+                                <i class="bi bi-trash"></i> 删除
+                            </button>
+                        </td>
+                    `;
+                    fileList.appendChild(row);
+                });
+
+                document.getElementById('selectAll').checked = false;
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        // 复制下载链接
+        function copyDownloadUrl(url) {
+            const fullUrl = window.location.origin + url;
+            const tempInput = document.createElement('input');
+            tempInput.value = fullUrl;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            alert('下载链接已复制到剪贴板');
+        }
+
+        // 删除文件
+        async function deleteFile(filename, deleteKey) {
+            if (!confirm('确定要删除这个文件吗？')) {
+                return;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'delete');
+                formData.append('filename', filename);
+                formData.append('delete_key', deleteKey);
+
+                const response = await fetch('api/file_manage.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || '删除文件失败');
+                }
+
+                alert('文件已成功删除');
+                loadFiles();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        // 加载用户列表（仅管理员可见）
+        async function loadUserList() {
+            try {
+                const response = await fetch('api/user.php?action=list_users');
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || '加载用户列表失败');
+                }
+
+                const select = document.getElementById('username');
+                select.innerHTML = '<option value="">所有用户</option>';
+                data.users.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.username;
+                    option.textContent = user.username;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('加载用户列表失败:', error);
+            }
+        }
+
+        // 全选/取消全选
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('.file-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAll.checked;
+            });
+        }
+
+        // 删除选中的文件
+        async function deleteSelectedFiles() {
+            const selectedFiles = document.querySelectorAll('.file-checkbox:checked');
+            if (selectedFiles.length === 0) {
+                alert('请选择要删除的文件');
+                return;
+            }
+
+            if (!confirm(`确定要删除选中的 ${selectedFiles.length} 个文件吗？`)) {
+                return;
+            }
+
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const checkbox of selectedFiles) {
+                try {
+                    const formData = new FormData();
+                    formData.append('action', 'delete');
+                    formData.append('filename', checkbox.dataset.filename);
+                    formData.append('delete_key', checkbox.dataset.deleteKey);
+
+                    const response = await fetch('api/file_manage.php', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+                    if (data.success) {
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+                } catch (error) {
+                    failCount++;
+                }
+            }
+
+            alert(`删除完成\n成功: ${successCount} 个\n失败: ${failCount} 个`);
+            loadFiles();
+        }
+
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', checkLoginStatus);
+    </script>
+</body>
+</html> 

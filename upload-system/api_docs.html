@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 文档 - 文件上传系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .method {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: white;
+        }
+        .method-post { background-color: #49cc90; }
+        .method-get { background-color: #61affe; }
+        .method-delete { background-color: #f93e3e; }
+        .param-required {
+            color: #f93e3e;
+            margin-left: 3px;
+        }
+        .api-section {
+            margin-bottom: 2rem;
+            padding: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+        }
+        pre {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 0.25rem;
+        }
+        .table {
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4 mb-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1>API 文档</h1>
+                    <button class="btn btn-primary" onclick="window.location.href='index.html'">返回主页</button>
+                </div>
+
+                <div class="alert alert-info">
+                    <h4>认证说明</h4>
+                    <p>所有API请求都需要认证。认证方式有两种：</p>
+                    <ol>
+                        <li>Session认证：用于网页端，通过登录获取session</li>
+                        <li>Token认证：用于API调用，需要在请求头中携带 <code>Authorization: Bearer &lt;token&gt;</code></li>
+                    </ol>
+                </div>
+
+                <!-- 用户认证 API -->
+                <div class="api-section">
+                    <h4>用户认证</h4>
+                    
+                    <h5>登录</h5>
+                    <p><span class="method method-post">POST</span> /api/user.php?action=login</p>
+                    <p>请求参数：</p>
+                    <pre>{
+    "username": "用户名",
+    "password": "密码"
+}</pre>
+                    <p>响应示例：</p>
+                    <pre>{
+    "success": true,
+    "token": "api_token",  // 仅API请求时返回
+    "is_admin": false
+}</pre>
+
+                    <h5>登出</h5>
+                    <p><span class="method method-post">POST</span> /api/user.php?action=logout</p>
+                    <p>仅用于网页端退出登录，API调用无需调用此接口</p>
+
+                    <h5>检查登录状态</h5>
+                    <p><span class="method method-get">GET</span> /api/user.php?action=check_login</p>
+                    <p>响应示例：</p>
+                    <pre>{
+    "success": true,
+    "username": "当前用户名",
+    "is_admin": false
+}</pre>
+                </div>
+
+                <!-- 文件上传 API -->
+                <div class="api-section">
+                    <h4>文件上传</h4>
+                    <p><span class="method method-post">POST</span> /api/upload.php</p>
+                    <p>支持单个或多个文件的上传。文件将按照 /用户/年/月/ 的目录结构存储。</p>
+                    
+                    <h5>请求参数</h5>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>参数名</th>
+                                <th>类型</th>
+                                <th>说明</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>file<span class="param-required">*</span></td>
+                                <td>File</td>
+                                <td>单文件上传时使用</td>
+                            </tr>
+                            <tr>
+                                <td>files[]<span class="param-required">*</span></td>
+                                <td>File[]</td>
+                                <td>多文件上传时使用，可以上传多个文件</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p>响应示例（单文件）：</p>
+                    <pre>{
+    "success": true,
+    "filename": "生成的文件名",
+    "original_name": "原始文件名",
+    "size": 文件大小,
+    "download_url": "下载链接",
+    "delete_key": "删除密钥",
+    "md5": "文件MD5"
+}</pre>
+
+                    <p>响应示例（多文件）：</p>
+                    <pre>{
+    "success": true,
+    "files": [
+        {
+            "filename": "生成的文件名",
+            "original_name": "原始文件名",
+            "size": 文件大小,
+            "download_url": "下载链接",
+            "delete_key": "删除密钥",
+            "md5": "文件MD5"
+        },
+        // ...更多文件
+    ]
+}</pre>
+                </div>
+
+                <!-- 文件管理 API -->
+                <div class="api-section">
+                    <h4>文件管理</h4>
+                    <p><span class="method method-post">POST</span> /api/file_manage.php</p>
+                    
+                    <h5>获取文件列表</h5>
+                    <p>请求参数：</p>
+                    <pre>{
+    "action": "list",
+    "username": "用户名"  // 可选，管理员可查看指定用户的文件
+}</pre>
+                    <p>响应示例：</p>
+                    <pre>{
+    "success": true,
+    "files": [
+        {
+            "filename": "文件名",
+            "original_name": "原始文件名",
+            "size": 文件大小,
+            "mime_type": "文件类型",
+            "username": "上传者",
+            "upload_time": 上传时间戳,
+            "download_url": "下载链接",
+            "delete_key": "删除密钥",
+            "md5": "文件MD5",
+            "downloads": 下载次数,
+            "last_access": 最后访问时间戳
+        },
+        // ...更多文件
+    ]
+}</pre>
+
+                    <h5>删除文件</h5>
+                    <p>请求参数：</p>
+                    <pre>{
+    "action": "delete",
+    "filename": "要删除的文件名",
+    "delete_key": "文件的删除密钥"
+}</pre>
+                    <p>响应示例：</p>
+                    <pre>{
+    "success": true
+}</pre>
+                </div>
+
+                <!-- 用户管理 API -->
+                <div class="api-section">
+                    <h4>用户管理（仅管理员）</h4>
+                    <p><span class="method method-post">POST</span> /api/user.php</p>
+
+                    <h5>创建用户</h5>
+                    <p>action=create_user</p>
+                    <pre>{
+    "username": "新用户名",
+    "password": "密码",
+    "role": "user/admin"  // 用户角色
+}</pre>
+
+                    <h5>获取用户列表</h5>
+                    <p>action=list_users</p>
+                    <p>响应示例：</p>
+                    <pre>{
+    "success": true,
+    "users": [
+        {
+            "username": "用户名",
+            "is_admin": false,
+            "created_at": 创建时间戳
+        },
+        // ...更多用户
+    ]
+}</pre>
+
+                    <h5>删除用户</h5>
+                    <p>action=delete_user</p>
+                    <pre>{
+    "username": "要删除的用户名",
+    "files_to_delete": [  // 可选，要删除的文件列表
+        {
+            "filename": "文件名",
+            "delete_key": "删除密钥"
+        },
+        // ...更多文件
+    ]
+}</pre>
+
+                    <h5>重置用户密码</h5>
+                    <p>action=reset_password</p>
+                    <pre>{
+    "target_username": "目标用户名"
+}</pre>
+                    <p>响应示例：</p>
+                    <pre>{
+    "success": true,
+    "new_password": "新密码"
+}</pre>
+                </div>
+
+                <!-- Token管理 API -->
+                <div class="api-section">
+                    <h4>Token管理</h4>
+                    
+                    <h5>获取用户Token</h5>
+                    <p><span class="method method-get">GET</span> /api/user.php?action=get_user_token</p>
+                    <p>响应示例：</p>
+                    <pre>{
+    "success": true,
+    "token": "用户的API Token"
+}</pre>
+
+                    <h5>重置用户Token</h5>
+                    <p><span class="method method-get">GET</span> /api/user.php?action=reset_user_token</p>
+                    <p>响应示例：</p>
+                    <pre>{
+    "success": true,
+    "token": "新的API Token"
+}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

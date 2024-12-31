@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>用户管理</h2>
+                    <button class="btn btn-primary" onclick="window.location.href='index.html'">返回主页</button>
+                </div>
+            </div>
+
+            <!-- 管理员功能：创建用户 -->
+            <div id="adminPanel" class="col-md-4" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h4>创建用户</h4>
+                    </div>
+                    <div class="card-body">
+                        <form id="createUserForm">
+                            <div class="mb-3">
+                                <label for="newUsername" class="form-label">用户名</label>
+                                <input type="text" class="form-control" id="newUsername" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="newPassword" class="form-label">密码</label>
+                                <input type="password" class="form-control" id="newPassword" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="userRole" class="form-label">角色</label>
+                                <select class="form-select" id="userRole">
+                                    <option value="user">普通用户</option>
+                                    <option value="admin">管理员</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary">创建用户</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 用户列表（管理员可见） -->
+            <div id="userListPanel" class="col-md-8" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h4>用户列表</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>用户名</th>
+                                        <th>角色</th>
+                                        <th>创建时间</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="userList"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 修改密码（所有用户可见） -->
+            <div id="changePasswordPanel" class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h4>修改密码</h4>
+                    </div>
+                    <div class="card-body">
+                        <form id="changePasswordForm">
+                            <div class="mb-3">
+                                <label for="currentPassword" class="form-label">当前密码</label>
+                                <input type="password" class="form-control" id="currentPassword" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="newUserPassword" class="form-label">新密码</label>
+                                <input type="password" class="form-control" id="newUserPassword" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="confirmPassword" class="form-label">确认新密码</label>
+                                <input type="password" class="form-control" id="confirmPassword" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">修改密码</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 文件列表模态框 -->
+            <div class="modal fade" id="fileListModal" tabindex="-1" aria-labelledby="fileListModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="fileListModalLabel">用户文件列表</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="selectAllFiles">
+                                    <label class="form-check-label" for="selectAllFiles">
+                                        全选/取消全选
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th width="50">选择</th>
+                                            <th>文件名</th>
+                                            <th>大小</th>
+                                            <th>上传时间</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="userFileList"></tbody>
+                                </table>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                <div>
+                                    共 <span id="totalFiles">0</span> 个文件
+                                </div>
+                                <nav aria-label="文件列表分页">
+                                    <ul class="pagination" id="filePagination"></ul>
+                                </nav>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-danger" onclick="confirmDeleteUser()">删除用户和选中的文件</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 用户设置模态框 -->
+            <div class="modal fade" id="userSettingsModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">用户设置</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="userSettingsForm">
+                                <input type="hidden" id="settingsUsername">
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="convertToWebp">
+                                        <label class="form-check-label" for="convertToWebp">
+                                            自动将图片转换为WebP格式
+                                        </label>
+                                        <div class="form-text">
+                                            支持将JPG、PNG、GIF格式的图片自动转换为WebP格式，可以显著减小文件体积
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-primary" onclick="saveUserSettings()">保存</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentUsername = '';
+        let isAdmin = false;
+        let userToDelete = '';
+        let userFiles = [];
+        let currentPage = 1;
+        const filesPerPage = 10;
+
+        // 格式化时间戳
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return '未知';
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+        }
+
+        // 检查登录状态
+        async function checkLoginStatus() {
+            try {
+                const response = await fetch('api/user.php?action=check_login');
+                const data = await response.json();
+                if (!data.success) {
+                    window.location.href = 'index.html';
+                    return;
+                }
+                currentUsername = data.username;
+                isAdmin = data.is_admin;
+                
+                if (isAdmin) {
+                    document.getElementById('adminPanel').style.display = 'block';
+                    document.getElementById('userListPanel').style.display = 'block';
+                    loadUsers();
+                }
+            } catch (error) {
+                console.error('检查登录状态失败:', error);
+                window.location.href = 'index.html';
+            }
+        }
+
+        // 加载用户列表
+        async function loadUsers() {
+            try {
+                const response = await fetch('api/user.php?action=list_users');
+                if (!response.ok) {
+                    throw new Error('加载用户列表失败');
+                }
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '加载用户列表失败');
+                }
+
+                const userList = document.getElementById('userList');
+                userList.innerHTML = '';
+
+                data.users.forEach(user => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${user.username}</td>
+                        <td>${user.is_admin ? '管理员' : '普通用户'}</td>
+                        <td>${formatTimestamp(user.created_at)}</td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-warning me-1" onclick="resetUserPassword('${user.username}')">
+                                    <i class="bi bi-key"></i> 重置密码
+                                </button>
+                                <button class="btn btn-sm btn-info me-1" onclick="showUserSettings('${user.username}')">
+                                    <i class="bi bi-gear"></i> 设置
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteUser('${user.username}')">
+                                    <i class="bi bi-trash"></i> 删除
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    userList.appendChild(tr);
+                });
+            } catch (error) {
+                console.error('加载用户列表失败:', error);
+                alert(error.message);
+            }
+        }
+
+        // 创建用户
+        document.getElementById('createUserForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('newUsername').value;
+            const password = document.getElementById('newPassword').value;
+            const role = document.getElementById('userRole').value;
+
+            try {
+                const response = await fetch('api/user.php?action=create_user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password, role })
+                });
+                if (!response.ok) {
+                    throw new Error('创建用户失败');
+                }
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '创建用户失败');
+                }
+
+                    alert('用户创建成功');
+                    document.getElementById('createUserForm').reset();
+                    loadUsers();
+            } catch (error) {
+                alert(error.message);
+            }
+        });
+
+        // 修改密码
+        document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newUserPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (newPassword !== confirmPassword) {
+                alert('两次输入的新密码不一致');
+                return;
+            }
+
+            try {
+                const response = await fetch('api/user.php?action=change_password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        current_password: currentPassword,
+                        new_password: newPassword
+                    })
+                });
+                if (!response.ok) {
+                    throw new Error('修改密码失败');
+                }
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '修改密码失败');
+                }
+
+                alert('密码修改成功，请重新登录');
+                window.location.href = 'index.html';
+            } catch (error) {
+                alert(error.message);
+            }
+        });
+
+        // 重置用户密码
+        async function resetUserPassword(username) {
+            if (!confirm(`确定要重置用户 ${username} 的密码吗？`)) return;
+
+            try {
+                const response = await fetch('api/user.php?action=reset_password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ target_username: username })
+                });
+
+                if (!response.ok) {
+                    throw new Error('重置密码失败');
+                }
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '重置密码失败');
+                }
+
+                alert(`用户 ${username} 的密码已重置为: ${data.new_password}`);
+                loadUsers(); // 重新加载用户列表
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        // 删除用户
+        async function deleteUser(username) {
+            userToDelete = username;
+            try {
+                const response = await fetch('api/user.php?action=list_user_files', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('获取用户文件列表失败');
+                }
+                
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '获取用户文件列表失败');
+                }
+
+                userFiles = data.files;
+                currentPage = 1;
+                showFileListModal();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        // 显示文件列表模态框
+        function showFileListModal() {
+            document.getElementById('fileListModalLabel').textContent = `用户 ${userToDelete} 的文件列表`;
+            document.getElementById('totalFiles').textContent = userFiles.length;
+            updateFileList();
+            new bootstrap.Modal(document.getElementById('fileListModal')).show();
+        }
+
+        // 更新文件列表
+        function updateFileList() {
+            const startIndex = (currentPage - 1) * filesPerPage;
+            const endIndex = startIndex + filesPerPage;
+            const pageFiles = userFiles.slice(startIndex, endIndex);
+            
+            const tbody = document.getElementById('userFileList');
+            tbody.innerHTML = '';
+            
+            pageFiles.forEach(file => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <input type="checkbox" class="form-check-input file-checkbox" 
+                               value="${file.filename}" data-delete-key="${file.delete_key}">
+                    </td>
+                    <td>${file.filename}</td>
+                    <td>${formatFileSize(file.size)}</td>
+                    <td>${new Date(file.upload_time * 1000).toLocaleString()}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            updatePagination();
+        }
+
+        // 更新分页
+        function updatePagination() {
+            const totalPages = Math.ceil(userFiles.length / filesPerPage);
+            const pagination = document.getElementById('filePagination');
+            pagination.innerHTML = '';
+            
+            // 上一页
+            const prevLi = document.createElement('li');
+            prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+            prevLi.innerHTML = `
+                <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">上一页</a>
+            `;
+            pagination.appendChild(prevLi);
+            
+            // 页码
+            for (let i = 1; i <= totalPages; i++) {
+                const li = document.createElement('li');
+                li.className = `page-item ${currentPage === i ? 'active' : ''}`;
+                li.innerHTML = `
+                    <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+                `;
+                pagination.appendChild(li);
+            }
+            
+            // 下一页
+            const nextLi = document.createElement('li');
+            nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+            nextLi.innerHTML = `
+                <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">下一页</a>
+            `;
+            pagination.appendChild(nextLi);
+        }
+
+        // 切换页面
+        function changePage(page) {
+            if (page < 1 || page > Math.ceil(userFiles.length / filesPerPage)) {
+                return;
+            }
+            currentPage = page;
+            updateFileList();
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 全选/取消全选
+        document.getElementById('selectAllFiles').addEventListener('change', function(e) {
+            const checkboxes = document.querySelectorAll('.file-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+            });
+        });
+
+        // 确认删除用户和选中的文件
+        async function confirmDeleteUser() {
+            const checkboxes = document.querySelectorAll('.file-checkbox:checked');
+            const filesToDelete = Array.from(checkboxes).map(checkbox => ({
+                filename: checkbox.value,
+                delete_key: checkbox.dataset.deleteKey
+            }));
+
+            try {
+                const response = await fetch('api/user.php?action=delete_user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: userToDelete,
+                        files_to_delete: filesToDelete
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('删除用户失败');
+                }
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '删除用户失败');
+                }
+
+                alert(data.message || '用户已删除');
+                document.getElementById('fileListModal').querySelector('[data-bs-dismiss="modal"]').click();
+                loadUsers();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        // 复制Token
+        function copyToken() {
+            const tokenInput = document.getElementById('tokenDisplay');
+            tokenInput.select();
+            document.execCommand('copy');
+            alert('Token已复制到剪贴板');
+        }
+
+        // 显示用户设置
+        async function showUserSettings(username) {
+            try {
+                const response = await fetch('api/user.php?action=get_user_settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username })
+                });
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '获取用户设置失败');
+                }
+
+                document.getElementById('settingsUsername').value = username;
+                document.getElementById('convertToWebp').checked = data.settings.convert_to_webp;
+                
+                const modal = new bootstrap.Modal(document.getElementById('userSettingsModal'));
+                modal.show();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        // 保存用户设置
+        async function saveUserSettings() {
+            const username = document.getElementById('settingsUsername').value;
+            const convertToWebp = document.getElementById('convertToWebp').checked;
+
+            try {
+                const response = await fetch('api/user.php?action=update_user_settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username,
+                        convert_to_webp: convertToWebp
+                    })
+                });
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '保存用户设置失败');
+                }
+
+                bootstrap.Modal.getInstance(document.getElementById('userSettingsModal')).hide();
+                alert('设置已保存');
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        // 页面加载完成后检查登录状态
+        document.addEventListener('DOMContentLoaded', checkLoginStatus);
+    </script>
+</body>
+</html> 

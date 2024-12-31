@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件上传系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        /* 在页面加载完成前隐藏所有界面 */
+        .auth-container {
+            display: none;
+        }
+        /* 加载动画 */
+        #loadingSpinner {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+        }
+        /* 拖拽上传区域样式 */
+        .upload-drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .upload-drop-zone:hover, .upload-drop-zone.dragover {
+            border-color: #0d6efd;
+            background: #e9ecef;
+        }
+        .upload-drop-zone i {
+            font-size: 48px;
+            color: #6c757d;
+            margin-bottom: 10px;
+        }
+        .selected-files {
+            margin-top: 15px;
+        }
+        .selected-files .file-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            background: #fff;
+            transition: all 0.2s ease;
+        }
+        .selected-files .file-item:hover {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .selected-files .file-item .file-name {
+            flex-grow: 1;
+            margin-right: 10px;
+            word-break: break-all;
+        }
+        .selected-files .file-item .remove-file {
+            color: #dc3545;
+            cursor: pointer;
+            padding: 4px 8px;
+            transition: all 0.2s ease;
+        }
+        .selected-files .file-item .remove-file:hover {
+            color: #b02a37;
+            transform: scale(1.1);
+        }
+        .progress {
+            position: relative;
+            height: 1.25rem;
+            background-color: #e9ecef;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        .progress-bar {
+            transition: width 0.2s ease;
+            position: relative;
+            overflow: visible;
+            text-align: center;
+            white-space: nowrap;
+            font-size: 0.75rem;
+            line-height: 1.25rem;
+            font-weight: bold;
+        }
+        .progress-text {
+            pointer-events: none;
+            text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.7);
+        }
+        /* 响应式布局调整 */
+        @media (max-width: 768px) {
+            .header-buttons {
+                flex-direction: column;
+                gap: 10px;
+            }
+            .header-buttons .btn-group {
+                width: 100%;
+                display: flex;
+                gap: 5px;
+            }
+            .header-buttons .btn {
+                flex: 1;
+                padding: 8px;
+                font-size: 14px;
+            }
+            .card-header h4 {
+                font-size: 1.2rem;
+            }
+            .upload-drop-zone {
+                min-height: 150px;
+                padding: 15px;
+            }
+            .upload-drop-zone i {
+                font-size: 36px;
+            }
+            .upload-drop-zone h5 {
+                font-size: 1rem;
+            }
+            .upload-drop-zone p {
+                font-size: 0.875rem;
+            }
+        }
+        /* 美化滚动条 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* 卡片阴影效果 */
+        .card {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        /* 按钮动画效果 */
+        .btn {
+            transition: all 0.2s ease;
+        }
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+        /* 模态框美化 */
+        .modal-content {
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .modal-header {
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .modal-footer {
+            border-top: 2px solid #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <!-- 加载动画 -->
+    <div id="loadingSpinner" class="text-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">加载中...</span>
+        </div>
+    </div>
+
+    <!-- 登录表单 -->
+    <div id="loginForm" class="container mt-5 auth-container">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="text-center">登录</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="login">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">用户名</label>
+                                <input type="text" class="form-control" id="username" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="password" class="form-label">密码</label>
+                                <input type="password" class="form-control" id="password" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">登录</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 上传界面 -->
+    <div id="uploadInterface" class="container mt-5 auth-container">
+        <div class="row">
+            <!-- 用户信息和操作按钮 -->
+            <div class="col-12 mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div class="d-flex align-items-center">
+                        <h2 class="me-3">文件上传系统</h2>
+                        <div>
+                            <button class="btn btn-info btn-sm me-2" onclick="showToken()">
+                                <i class="bi bi-key"></i> 查看API Token
+                            </button>
+                            <button class="btn btn-warning btn-sm" onclick="resetToken()">
+                                <i class="bi bi-arrow-clockwise"></i> 重置API Token
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <button class="btn btn-info me-2" onclick="window.location.href='api_docs.html'">
+                            <i class="bi bi-book"></i> API文档
+                        </button>
+                        <button id="userManageBtn" class="btn btn-primary me-2" style="display: none;" onclick="window.location.href='user_manage.html'">
+                            <i class="bi bi-people"></i> 用户管理
+                        </button>
+                        <button id="fileManageBtn" class="btn btn-primary me-2" style="display: none;" onclick="window.location.href='file_manage.html'">
+                            <i class="bi bi-folder"></i> 文件管理
+                        </button>
+                        <button id="logoutBtn" class="btn btn-danger" style="display: none;" onclick="logout()">
+                            <i class="bi bi-box-arrow-right"></i> 退出
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 上传区域 -->
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-white">
+                        <h4 class="mb-0">文件上传</h4>
+                    </div>
+                    <div class="card-body">
+                        <form id="uploadForm">
+                            <div class="mb-4">
+                                <div class="upload-drop-zone" id="dropZone">
+                                    <input type="file" class="d-none" id="files" multiple>
+                                    <i class="bi bi-cloud-upload"></i>
+                                    <h5 class="mt-3">拖拽文件到这里或点击选择文件</h5>
+                                    <p class="text-muted mb-0">支持多文件上传</p>
+                                </div>
+                                <div class="selected-files" id="fileList"></div>
+                            </div>
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                                <button type="submit" class="btn btn-primary px-4">
+                                    <i class="bi bi-upload me-2"></i>开始上传
+                                </button>
+                            </div>
+                        </form>
+                        <div id="uploadResult" class="mt-4"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Token模态框 -->
+    <div class="modal fade" id="tokenModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">API Token</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="input-group">
+                        <input type="text" id="tokenDisplay" class="form-control" readonly>
+                        <button class="btn btn-outline-secondary" onclick="copyToken()">
+                            <i class="bi bi-clipboard"></i> 复制
+                        </button>
+                    </div>
+                    <small class="text-muted mt-2 d-block">此token用于API调用，可用于文件上传等操作。如需更换请点击"重置API Token"按钮。</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let isAdmin = false;
+        const tokenModal = new bootstrap.Modal(document.getElementById('tokenModal'));
+
+        // 显示加载动画
+        function showLoading() {
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.querySelectorAll('.auth-container').forEach(container => {
+                container.style.display = 'none';
+            });
+        }
+
+        // 隐藏加载动画
+        function hideLoading() {
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+
+        // 检查登录状态
+        async function checkLoginStatus() {
+            showLoading();
+            try {
+                const response = await fetch('api/user.php?action=check_login');
+                const data = await response.json();
+                if (data.success) {
+                    isAdmin = data.is_admin;
+                    showUploadInterface(data.username);
+                } else {
+                    showLoginForm();
+                }
+            } catch (error) {
+                console.error('检查登录状态失败:', error);
+                showLoginForm();
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // 登录表单提交
+        document.getElementById('login').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('api/user.php?action=login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    isAdmin = data.is_admin;
+                    showUploadInterface(username);
+                } else {
+                    alert(data.error || '登录失败');
+                }
+            } catch (error) {
+                alert('登录失败: ' + error.message);
+            }
+        });
+
+        // 显示登录表单
+        function showLoginForm() {
+            document.querySelectorAll('.auth-container').forEach(container => {
+                container.style.display = 'none';
+            });
+            document.getElementById('loginForm').style.display = 'block';
+        }
+
+        // 显示上传界面
+        function showUploadInterface(username) {
+            document.querySelectorAll('.auth-container').forEach(container => {
+                container.style.display = 'none';
+            });
+            document.getElementById('uploadInterface').style.display = 'block';
+            
+            // 显示按钮
+            document.getElementById('logoutBtn').style.display = 'inline-block';
+            document.getElementById('fileManageBtn').style.display = 'inline-block';
+            
+            // 只有管理员可以看到用户管理按钮
+            if (isAdmin) {
+                document.getElementById('userManageBtn').style.display = 'inline-block';
+            }
+        }
+
+        // 退出登录
+        async function logout() {
+            try {
+                await fetch('api/user.php?action=logout');
+                showLoginForm();
+            } catch (error) {
+                console.error('退出登录失败:', error);
+            }
+        }
+
+        // 显示Token
+        async function showToken() {
+            try {
+                const response = await fetch('api/user.php?action=get_user_token');
+                const data = await response.json();
+                if (data.success && data.token) {
+                    document.getElementById('tokenDisplay').value = data.token;
+                    tokenModal.show();
+                } else {
+                    alert('获取Token失败');
+                }
+            } catch (error) {
+                console.error('获取Token失败:', error);
+                alert('获取Token失败');
+            }
+        }
+
+        // 复制Token
+        function copyToken() {
+            const tokenInput = document.getElementById('tokenDisplay');
+            tokenInput.select();
+            document.execCommand('copy');
+            alert('Token已复制到剪贴板');
+        }
+
+        // 重置Token
+        async function resetToken() {
+            if (!confirm('确定要重置Token吗？重置后旧的Token将失效。')) {
+                return;
+            }
+            try {
+                const response = await fetch('api/user.php?action=reset_user_token');
+                const data = await response.json();
+                if (data.success) {
+                    alert('Token重置成功');
+                    document.getElementById('tokenDisplay').value = data.token;
+                    tokenModal.show();
+                } else {
+                    alert('重置Token失败');
+                }
+            } catch (error) {
+                console.error('重置Token失败:', error);
+                alert('重置Token失败');
+            }
+        }
+
+        // 文件上传相关
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('files');
+        const fileList = document.getElementById('fileList');
+        
+        // 点击上传区域触发文件选择
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // 处理文件选择
+        fileInput.addEventListener('change', handleFiles);
+
+        // 拖拽相关事件
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults);
+            document.body.addEventListener(eventName, preventDefaults);
+        });
+
+        // 拖拽效果
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.add('dragover');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.remove('dragover');
+            });
+        });
+
+        // 处理文件拖放
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            fileInput.files = files;
+            handleFiles();
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // 处理选择的文件
+        function handleFiles() {
+            const files = fileInput.files;
+            fileList.innerHTML = '';
+            
+            Array.from(files).forEach(file => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <div class="w-100">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="file-name">${file.name}</span>
+                            <span class="remove-file" onclick="removeFile('${file.name}')">
+                                <i class="bi bi-x-circle"></i>
+                            </span>
+                        </div>
+                        <div class="progress d-none">
+                            <div class="progress-bar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                            <div class="progress-text position-absolute w-100 text-center" style="line-height: 1.25rem; color: #000;"></div>
+                        </div>
+                    </div>
+                `;
+                fileList.appendChild(fileItem);
+            });
+        }
+
+        // 移除文件
+        function removeFile(fileName) {
+            const dt = new DataTransfer();
+            const files = fileInput.files;
+            
+            for (let i = 0; i < files.length; i++) {
+                if (files[i].name !== fileName) {
+                    dt.items.add(files[i]);
+                }
+            }
+            
+            fileInput.files = dt.files;
+            handleFiles();
+        }
+
+        // 文件上传
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const files = fileInput.files;
+            if (files.length === 0) {
+                alert('请选择要上传的文件');
+                return;
+            }
+
+            // 显示所有进度条
+            document.querySelectorAll('.file-item .progress').forEach(progress => {
+                progress.classList.remove('d-none');
+            });
+
+            document.getElementById('uploadResult').innerHTML = '';
+            const uploadResults = [];
+
+            // 逐个上传文件
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const formData = new FormData();
+                formData.append('files[]', file);
+
+                const progressBar = document.querySelectorAll('.file-item .progress-bar')[i];
+                const progressText = progressBar.parentElement.querySelector('.progress-text');
+                
+                try {
+                    const data = await new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        
+                        xhr.upload.addEventListener('progress', (e) => {
+                            if (e.lengthComputable) {
+                                const percentComplete = Math.round((e.loaded / e.total) * 100);
+                                progressBar.style.width = percentComplete + '%';
+                                progressBar.setAttribute('aria-valuenow', percentComplete);
+                                progressBar.textContent = percentComplete + '%';
+                            }
+                        });
+
+                        xhr.addEventListener('load', () => {
+                            if (xhr.status === 200) {
+                                try {
+                                    const response = JSON.parse(xhr.responseText);
+                                    resolve(response);
+                                } catch (e) {
+                                    reject(new Error('解析响应失败'));
+                                }
+                            } else {
+                                reject(new Error('上传失败'));
+                            }
+                        });
+
+                        xhr.addEventListener('error', () => {
+                            reject(new Error('网络错误'));
+                        });
+
+                        xhr.open('POST', 'api/upload.php');
+                        xhr.send(formData);
+                    });
+
+                    if (data.success) {
+                        progressBar.classList.add('bg-success');
+                        if (Array.isArray(data.files)) {
+                            uploadResults.push(...data.files);
+                        } else {
+                            uploadResults.push(data);
+                        }
+                    } else {
+                        progressBar.classList.add('bg-danger');
+                        throw new Error(data.error || '上传失败');
+                    }
+                } catch (error) {
+                    progressBar.classList.add('bg-danger');
+                    console.error(`文件 ${file.name} 上传失败:`, error);
+                }
+            }
+
+            // 显示上传结果
+            if (uploadResults.length > 0) {
+                let resultHtml = '<div class="alert alert-success mt-3">';
+                resultHtml += '<h5>上传完成！</h5>';
+                uploadResults.forEach(file => {
+                    resultHtml += `
+                        <div class="mb-2">
+                            <strong>${file.original_name}</strong><br>
+                            <div class="input-group">
+                                <input type="text" class="form-control" value="${window.location.origin}${file.download_url}" readonly>
+                                <button class="btn btn-outline-secondary" onclick="copyToClipboard('${window.location.origin}${file.download_url}')">
+                                    <i class="bi bi-clipboard"></i> 复制
+                                </button>
+                            </div>
+                        </div>`;
+                });
+                resultHtml += '</div>';
+                document.getElementById('uploadResult').innerHTML = resultHtml;
+            }
+
+            // 清空文件选择
+            fileInput.value = '';
+            // 延迟一会儿再清空文件列表，让用户能看到最终的进度状态
+            setTimeout(() => {
+                fileList.innerHTML = '';
+            }, 3000);
+        });
+
+        // 复制链接到剪贴板
+        function copyToClipboard(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            alert('链接已复制到剪贴板');
+        }
+
+        // 页面加载时检查登录状态
+        document.addEventListener('DOMContentLoaded', checkLoginStatus);
+    </script>
+</body>
+</html> 

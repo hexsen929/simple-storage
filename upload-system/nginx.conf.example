@@ -1,0 +1,32 @@
+server {
+    listen 80;
+    server_name your-domain.com;
+    root /path/to/upload-system;
+    index index.html index.php;
+
+    # 文件上传大小限制
+    client_max_body_size 2048M;
+
+    # 上传目录访问配置
+    location /uploads {
+        alias /path/to/upload-system/uploads;
+        try_files $uri $uri/ =404;
+    }
+
+    # PHP 文件处理
+    location ~ \.php$ {
+        fastcgi_pass unix:/run/php-fpm/www.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+        
+        # 超时设置
+        fastcgi_connect_timeout 300;
+        fastcgi_send_timeout 300;
+        fastcgi_read_timeout 300;
+    }
+
+    # 禁止访问敏感文件
+    location ~ /\. {
+        deny all;
+    }
+} 
